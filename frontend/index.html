@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EchoLang — Emotion-Aware Interpreter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+  <style>
+    :root {
+      --bg:       #090c10;
+      --surface:  #111620;
+      --border:   #1e2a3a;
+      --accent:   #00d4ff;
+      --accent2:  #7c3aed;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --angry:    #ef4444;
+      --happy:    #22c55e;
+      --sad:      #6366f1;
+      --calm:     #06b6d4;
+      --fearful:  #f97316;
+      --neutral:  #94a3b8;
+      --urgent:   #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 2.8rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 300;
+    }
+
+    /* Status bar */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: all 0.3s;
+    }
+
+    .status-dot.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1.5s infinite; }
+    .status-dot.error  { background: var(--angry); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+
+    .status-text {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+    }
+
+    .lang-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .lang-select:focus { border-color: var(--accent); }
+
+    .record-btn {
+      position: relative;
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      outline: none;
+    }
+
+    .record-btn::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,212,255,0.2);
+      transition: all 0.3s;
+    }
+
+    .record-btn:hover::before { inset: -10px; border-color: rgba(0,212,255,0.4); }
+
+    .record-btn.recording {
+      border-color: var(--angry);
+      animation: record-pulse 1s infinite;
+    }
+
+    @keyframes record-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+      50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+    }
+
+    .record-icon {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--accent);
+      transition: all 0.2s;
+    }
+
+    .record-btn.recording .record-icon {
+      border-radius: 4px;
+      background: var(--angry);
+      width: 20px; height: 20px;
+    }
+
+    /* Waveform */
+    .waveform-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+      min-height: 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .waveform-container::before {
+      content: 'LIVE INPUT';
+      position: absolute;
+      top: 0.6rem; left: 1rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    #waveform { margin-top: 1rem; }
+
+    /* Emotion display */
+    .emotion-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .emotion-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 0.5rem 1.2rem;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      transition: all 0.4s;
+    }
+
+    .emotion-emoji { font-size: 1.2rem; }
+
+    .emotion-bar-container {
+      display: flex;
+      gap: 0.4rem;
+      align-items: flex-end;
+      height: 40px;
+    }
+
+    .emotion-bar {
+      width: 28px;
+      border-radius: 4px 4px 0 0;
+      transition: height 0.5s ease, background 0.3s;
+      min-height: 3px;
+      position: relative;
+    }
+
+    .emotion-bar-label {
+      position: absolute;
+      bottom: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.55rem;
+      color: var(--muted);
+      white-space: nowrap;
+      font-family: 'Space Mono', monospace;
+    }
+
+    /* Transcript panels */
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 640px) { .panels { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      min-height: 180px;
+      position: relative;
+      transition: border-color 0.3s;
+    }
+
+    .panel.active { border-color: var(--accent); }
+
+    .panel-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .lang-badge {
+      background: var(--border);
+      padding: 0.1rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.6rem;
+    }
+
+    .panel-text {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      color: var(--text);
+      min-height: 80px;
+      transition: opacity 0.3s;
+    }
+
+    .panel-text.loading { opacity: 0.3; }
+
+    .placeholder {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-style: italic;
+    }
+
+    /* Audio playback */
+    .playback-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .play-btn {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--accent);
+      background: rgba(0,212,255,0.1);
+      color: var(--accent);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .play-btn:hover { background: rgba(0,212,255,0.2); }
+    .play-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .playback-info { flex: 1; }
+    .playback-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 0.3rem;
+    }
+
+    .playback-text {
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    /* Pipeline steps */
+    .pipeline {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+
+    .step {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      transition: all 0.3s;
+    }
+
+    .step.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(0,212,255,0.05);
+    }
+
+    .step.done {
+      border-color: #22c55e;
+      color: #22c55e;
+      background: rgba(34,197,94,0.05);
+    }
+
+    .step-arrow { color: var(--border); font-size: 0.8rem; }
+
+    /* History */
+    .history-section { margin-top: 1rem; }
+
+    .history-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+    }
+
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 0.75rem;
+      display: grid;
+      grid-template-columns: auto 1fr 1fr auto;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .history-emotion { font-size: 1rem; }
+    .history-src { color: var(--muted); }
+    .history-tgt { color: var(--text); }
+    .history-time {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+    }
+
+    /* Emotion colors */
+    .e-angry   { color: var(--angry);   border-color: var(--angry);   background: rgba(239,68,68,0.05); }
+    .e-happy   { color: var(--happy);   border-color: var(--happy);   background: rgba(34,197,94,0.05); }
+    .e-sad     { color: var(--sad);     border-color: var(--sad);     background: rgba(99,102,241,0.05); }
+    .e-calm    { color: var(--calm);    border-color: var(--calm);    background: rgba(6,182,212,0.05); }
+    .e-fearful { color: var(--fearful); border-color: var(--fearful); background: rgba(249,115,22,0.05); }
+    .e-neutral { color: var(--neutral); border-color: var(--neutral); background: rgba(148,163,184,0.05); }
+    .e-surprised { color: var(--urgent); border-color: var(--urgent); background: rgba(245,158,11,0.05); }
+    .e-disgust { color: #a855f7; border-color: #a855f7; background: rgba(168,85,247,0.05); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">EchoLang</div>
+    <div class="tagline">Emotion-Aware Real-Time Voice Interpreter</div>
+  </header>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-text" id="statusText">READY — PRESS RECORD TO SPEAK</div>
+  </div>
+
+  <!-- Pipeline steps -->
+  <div class="pipeline">
+    <div class="step" id="step-record">🎙 RECORD</div>
+    <div class="step-arrow">→</div>
+    <div class="step" id="step-stt">📝 TRANSCRIBE</div>
+    <div class="step-arrow">→</div>
+    <div class="step" id="step-emotion">🧠 EMOTION</div>
+    <div class="step-arrow">→</div>
+    <div class="step" id="step-translate">🌐 TRANSLATE</div>
+    <div class="step-arrow">→</div>
+    <div class="step" id="step-tts">🔊 SYNTHESIZE</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.3rem;font-family:'Space Mono',monospace;">TARGET LANGUAGE</div>
+      <select class="lang-select" id="targetLang">
+        <option value="hi">Hindi 🇮🇳</option>
+        <option value="en">English 🇬🇧</option>
+        <option value="ta">Tamil 🇮🇳</option>
+        <option value="fr">French 🇫🇷</option>
+        <option value="de">German 🇩🇪</option>
+        <option value="es">Spanish 🇪🇸</option>
+      </select>
+    </div>
+
+    <button class="record-btn" id="recordBtn" title="Hold to record">
+      <div class="record-icon"></div>
+    </button>
+
+    <div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.3rem;font-family:'Space Mono',monospace;">HOLD TIME</div>
+      <div style="font-family:'Space Mono',monospace;font-size:0.85rem;color:var(--accent)" id="recordTimer">0.0s</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.3rem">
+      <div style="font-size:0.7rem;color:var(--muted);font-family:'Space Mono',monospace;">MIC LEVEL</div>
+      <div id="micMeter" style="width:80px;height:10px;background:var(--border);border-radius:4px;overflow:hidden">
+        <div id="micLevel" style="height:100%;width:0%;background:var(--accent);transition:width 0.05s;border-radius:4px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Waveform -->
+  <div class="waveform-container">
+    <div id="waveform"></div>
+  </div>
+
+  <!-- Emotion panel -->
+  <div class="emotion-panel">
+    <div class="emotion-badge" id="emotionBadge">
+      <span class="emotion-emoji" id="emotionEmoji">😶</span>
+      <span id="emotionLabel">NEUTRAL</span>
+      <span style="color:var(--muted);font-size:0.7rem" id="emotionConf"></span>
+    </div>
+    <div class="emotion-bar-container" id="emotionBars"></div>
+  </div>
+
+  <!-- Transcript panels -->
+  <div class="panels">
+    <div class="panel" id="srcPanel">
+      <div class="panel-label">
+        ORIGINAL SPEECH
+        <span class="lang-badge" id="srcLangBadge">AUTO</span>
+      </div>
+      <div class="panel-text" id="srcText">
+        <span class="placeholder">Your speech will appear here...</span>
+      </div>
+    </div>
+    <div class="panel" id="tgtPanel">
+      <div class="panel-label">
+        TRANSLATED TEXT
+        <span class="lang-badge" id="tgtLangBadge">—</span>
+      </div>
+      <div class="panel-text" id="tgtText">
+        <span class="placeholder">Translation will appear here...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Playback -->
+  <div class="playback-section">
+    <button class="play-btn" id="playBtn" disabled title="Play translated audio">▶</button>
+    <div class="playback-info">
+      <div class="playback-title">TRANSLATED AUDIO OUTPUT</div>
+      <div class="playback-text" id="playbackText">No audio yet — record something to hear the translation.</div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="history-section">
+    <div class="history-label">— CONVERSATION HISTORY —</div>
+    <div id="historyList"></div>
+  </div>
+
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────────
+const WS_URL = `ws://${location.host}/ws/pipeline`;
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let ws = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let recordInterval = null;
+let recordSeconds = 0;
+let currentAudioBlob = null;
+let lastAudioOut = null;
+
+// ── Emotion config ─────────────────────────────────────────────────────────────
+const EMOTIONS = {
+  angry:    { emoji: '😠', cls: 'e-angry',    color: '#ef4444' },
+  happy:    { emoji: '😊', cls: 'e-happy',    color: '#22c55e' },
+  sad:      { emoji: '😢', cls: 'e-sad',      color: '#6366f1' },
+  calm:     { emoji: '😌', cls: 'e-calm',     color: '#06b6d4' },
+  fearful:  { emoji: '😰', cls: 'e-fearful',  color: '#f97316' },
+  neutral:  { emoji: '😶', cls: 'e-neutral',  color: '#94a3b8' },
+  surprised:{ emoji: '😲', cls: 'e-surprised',color: '#f59e0b' },
+  disgust:  { emoji: '🤢', cls: 'e-disgust',  color: '#a855f7' },
+};
+
+// ── WaveSurfer ─────────────────────────────────────────────────────────────────
+const wavesurfer = WaveSurfer.create({
+  container: '#waveform',
+  waveColor: '#1e2a3a',
+  progressColor: '#00d4ff',
+  cursorColor: '#00d4ff',
+  height: 48,
+  barWidth: 2,
+  barGap: 1,
+  barRadius: 2,
+  normalize: true,
+  interact: false,
+});
+
+// ── DOM refs ───────────────────────────────────────────────────────────────────
+const recordBtn    = document.getElementById('recordBtn');
+const statusDot    = document.getElementById('statusDot');
+const statusText   = document.getElementById('statusText');
+const srcText      = document.getElementById('srcText');
+const tgtText      = document.getElementById('tgtText');
+const srcLangBadge = document.getElementById('srcLangBadge');
+const tgtLangBadge = document.getElementById('tgtLangBadge');
+const emotionBadge = document.getElementById('emotionBadge');
+const emotionEmoji = document.getElementById('emotionEmoji');
+const emotionLabel = document.getElementById('emotionLabel');
+const emotionConf  = document.getElementById('emotionConf');
+const emotionBars  = document.getElementById('emotionBars');
+const playBtn      = document.getElementById('playBtn');
+const playbackText = document.getElementById('playbackText');
+const recordTimer  = document.getElementById('recordTimer');
+const historyList  = document.getElementById('historyList');
+const targetLang   = document.getElementById('targetLang');
+
+// ── WebSocket ──────────────────────────────────────────────────────────────────
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => setStatus('CONNECTED — READY TO RECORD', 'active');
+  ws.onclose = () => { setStatus('DISCONNECTED — RETRYING...', ''); setTimeout(connectWS, 3000); };
+  ws.onerror = () => setStatus('CONNECTION ERROR', 'error');
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+}
+
+function handleMessage(msg) {
+  if (msg.error) { setStatus('ERROR: ' + msg.error, 'error'); return; }
+
+  const steps = { transcribing: 'step-stt', analyzing_emotion: 'step-emotion',
+                  translating: 'step-translate', synthesizing: 'step-tts' };
+
+  if (msg.status && steps[msg.status]) {
+    setStepActive(steps[msg.status]);
+    setStatus(msg.status.toUpperCase().replace('_', ' ') + '...', 'active');
+  }
+
+  if (msg.status === 'transcribed') {
+    srcText.textContent = msg.src_text;
+    srcLangBadge.textContent = (msg.src_lang || 'auto').toUpperCase();
+    setStepDone('step-stt');
+  }
+
+  if (msg.status === 'emotion_detected') {
+    updateEmotion(msg.emotion, msg.confidence, msg.all_scores);
+    setStepDone('step-emotion');
+  }
+
+  if (msg.status === 'translated') {
+    tgtText.textContent = msg.translated_text;
+    tgtLangBadge.textContent = msg.target_lang.toUpperCase();
+    setStepDone('step-translate');
+  }
+
+  if (msg.status === 'complete') {
+    // Load audio
+    const bytes = Uint8Array.from(atob(msg.audio_out), c => c.charCodeAt(0));
+    lastAudioOut = new Blob([bytes], { type: 'audio/mpeg' });
+    playBtn.disabled = false;
+    playbackText.textContent = msg.translated_text;
+
+    // Load into wavesurfer for playback visualization
+    wavesurfer.loadBlob(lastAudioOut);
+
+    setStepDone('step-tts');
+    setStatus('COMPLETE — PLAY TRANSLATED AUDIO BELOW', 'active');
+
+    // Add to history
+    addHistory(msg);
+
+    // Auto-play
+    setTimeout(() => { if (lastAudioOut) playAudio(); }, 400);
+  }
+}
+
+// ── Recording ──────────────────────────────────────────────────────────────────
+recordBtn.addEventListener('mousedown', startRecording);
+recordBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
+recordBtn.addEventListener('mouseup', stopRecording);
+recordBtn.addEventListener('mouseleave', () => { if (isRecording) stopRecording(); });
+recordBtn.addEventListener('touchend', stopRecording);
+
+// ── Mic level meter ────────────────────────────────────────────────────────────
+let _audioCtx = null, _analyser = null, _micLevelRAF = null;
+
+function startMicMeter(stream) {
+  _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  _analyser = _audioCtx.createAnalyser();
+  _analyser.fftSize = 256;
+  const src = _audioCtx.createMediaStreamSource(stream);
+  src.connect(_analyser);
+  const buf = new Uint8Array(_analyser.frequencyBinCount);
+  const tick = () => {
+    _analyser.getByteFrequencyData(buf);
+    const avg = buf.reduce((a, b) => a + b, 0) / buf.length;
+    document.getElementById('micLevel').style.width = Math.min(avg * 2, 100) + '%';
+    _micLevelRAF = requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+function stopMicMeter() {
+  if (_micLevelRAF) cancelAnimationFrame(_micLevelRAF);
+  if (_audioCtx) { _audioCtx.close(); _audioCtx = null; }
+  document.getElementById('micLevel').style.width = '0%';
+}
+
+async function startRecording() {
+  if (isRecording) return;
+
+  // Disable processing that causes silence, but keep autoGainControl
+  // to boost quiet mic signals. The original silence was from sampleRate:16000.
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: true,   // ← keep ON: boosts quiet mic levels
+      channelCount: 1,
+    }
+  });
+
+  // Pick best supported MIME type
+  const mimeType = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/ogg',
+  ].find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+  mediaRecorder = new MediaRecorder(stream, {
+    ...(mimeType ? { mimeType } : {}),
+    audioBitsPerSecond: 128000,
+  });
+  audioChunks = [];
+  // timeslice=250ms so data arrives in chunks, not all at stop
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.start(250);
+
+  startMicMeter(stream);
+
+  isRecording = true;
+  recordBtn.classList.add('recording');
+  recordSeconds = 0;
+  recordInterval = setInterval(() => {
+    recordSeconds += 0.1;
+    recordTimer.textContent = recordSeconds.toFixed(1) + 's';
+  }, 100);
+  setStatus('RECORDING... RELEASE TO PROCESS', 'active');
+  resetSteps();
+}
+
+async function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+  clearInterval(recordInterval);
+  recordBtn.classList.remove('recording');
+  stopMicMeter();
+
+  await new Promise(resolve => { mediaRecorder.onstop = resolve; mediaRecorder.stop(); });
+  mediaRecorder.stream.getTracks().forEach(t => t.stop());
+
+  if (recordSeconds < 1.0) {
+    setStatus('ERROR: RECORDING TOO SHORT. HOLD TO SPEAK.', 'error');
+    resetSteps();
+    return;
+  }
+
+  // Use the actual MIME type the recorder used
+  const blobType = mediaRecorder.mimeType || 'audio/webm';
+  currentAudioBlob = new Blob(audioChunks, { type: blobType });
+  console.log(`[EchoLang] Recorded blob: ${currentAudioBlob.size} bytes, type=${blobType}`);
+
+  if (currentAudioBlob.size < 1000) {
+    setStatus('ERROR: MIC NOT CAPTURING AUDIO — CHECK BROWSER MIC PERMISSIONS', 'error');
+    resetSteps();
+    return;
+  }
+
+  // Show waveform
+  wavesurfer.loadBlob(currentAudioBlob);
+
+  setStatus('PROCESSING...', 'active');
+  setStepDone('step-record');
+
+  // Send to backend
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = reader.result.split(',')[1];
+      ws.send(JSON.stringify({ audio: b64, target_lang: targetLang.value }));
+    };
+    reader.readAsDataURL(currentAudioBlob);
+  } else {
+    setStatus('NOT CONNECTED TO BACKEND', 'error');
+  }
+}
+
+// ── Audio playback ─────────────────────────────────────────────────────────────
+playBtn.addEventListener('click', playAudio);
+
+function playAudio() {
+  if (!lastAudioOut) return;
+  const url = URL.createObjectURL(lastAudioOut);
+  const audio = new Audio(url);
+  playBtn.textContent = '⏸';
+  audio.play();
+  audio.onended = () => { playBtn.textContent = '▶'; URL.revokeObjectURL(url); };
+}
+
+// ── Emotion UI ─────────────────────────────────────────────────────────────────
+function updateEmotion(emotion, confidence, allScores) {
+  const cfg = EMOTIONS[emotion] || EMOTIONS.neutral;
+  emotionEmoji.textContent = cfg.emoji;
+  emotionLabel.textContent = emotion.toUpperCase();
+  emotionConf.textContent = (confidence * 100).toFixed(0) + '%';
+
+  // Remove old classes
+  Object.values(EMOTIONS).forEach(e => emotionBadge.classList.remove(e.cls));
+  emotionBadge.classList.add(cfg.cls);
+
+  // Bars
+  emotionBars.innerHTML = '';
+  const sortedEmotions = Object.entries(allScores).sort((a, b) => b[1] - a[1]);
+  sortedEmotions.forEach(([em, score]) => {
+    const c = EMOTIONS[em] || EMOTIONS.neutral;
+    const bar = document.createElement('div');
+    bar.className = 'emotion-bar';
+    bar.style.height = Math.max(score * 40, 3) + 'px';
+    bar.style.background = c.color;
+    bar.style.opacity = em === emotion ? '1' : '0.35';
+    bar.innerHTML = `<span class="emotion-bar-label">${em.slice(0,3)}</span>`;
+    emotionBars.appendChild(bar);
+  });
+}
+
+// ── Pipeline steps ─────────────────────────────────────────────────────────────
+function resetSteps() {
+  ['step-record','step-stt','step-emotion','step-translate','step-tts'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+  });
+}
+
+function setStepActive(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.add('active'); el.classList.remove('done'); }
+}
+
+function setStepDone(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.add('done'); el.classList.remove('active'); }
+}
+
+// ── Status ─────────────────────────────────────────────────────────────────────
+function setStatus(text, state) {
+  statusText.textContent = text;
+  statusDot.className = 'status-dot' + (state ? ' ' + state : '');
+}
+
+// ── History ────────────────────────────────────────────────────────────────────
+function addHistory(msg) {
+  const cfg = EMOTIONS[msg.emotion] || EMOTIONS.neutral;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  item.innerHTML = `
+    <span class="history-emotion">${cfg.emoji}</span>
+    <span class="history-src">${msg.src_text}</span>
+    <span class="history-tgt">${msg.translated_text}</span>
+    <span class="history-time">${time}</span>
+  `;
+  historyList.prepend(item);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+connectWS();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+openai-whisper
+transformers
+torch
+torchaudio
+sentencepiece
+sacremoses
+gTTS
+numpy
+websockets
+imageio-ffmpeg
